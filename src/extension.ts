@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { XlsxEditorProvider } from './xlsxEditorProvider';
+import { OoxmlEditorProvider } from './ooxmlEditorProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
-  context.subscriptions.push(XlsxEditorProvider.register(context));
+  context.subscriptions.push(OoxmlEditorProvider.register(context));
 }
 
 export function deactivate(): void {}
