@@ -1,9 +1,9 @@
 {
-  "name": "vscode-ooxml-xlsx-viewer",
-  "displayName": "OOXML Spreadsheet Viewer",
-  "description": "High-fidelity XLSX / XLSM / XLTX spreadsheet viewer for VS Code powered by @silurus/ooxml",
+  "name": "ooxml-viewer-vscode",
+  "displayName": "OOXML Viewer",
+  "description": "Extension to view OOXML documents (Word, Excel, PPT)",
   "version": "0.1.0",
-  "publisher": "silurus",
+  "publisher": "TODO: replace me",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -24,10 +24,18 @@
         "viewType": "ooxml.xlsxViewer",
         "displayName": "OOXML Spreadsheet Viewer",
         "selector": [
-          { "filenamePattern": "*.xlsx" },
-          { "filenamePattern": "*.xlsm" },
-          { "filenamePattern": "*.xltx" },
-          { "filenamePattern": "*.xltm" }
+          {
+            "filenamePattern": "*.xlsx"
+          },
+          {
+            "filenamePattern": "*.xlsm"
+          },
+          {
+            "filenamePattern": "*.xltx"
+          },
+          {
+            "filenamePattern": "*.xltm"
+          }
         ],
         "priority": "default"
       }
