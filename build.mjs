@@ -1,6 +1,7 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
+import { mainThreadOnlyWorkerStubs } from './esbuild-worker-stub.mjs';
 
 const isProduction = process.argv.includes('--production');
 const isWatch = process.argv.includes('--watch');
@@ -16,9 +17,13 @@ function copyAssets() {
   if (fs.existsSync(ooxmlDist)) {
     const files = fs.readdirSync(ooxmlDist);
     for (const file of files) {
+      const fullPath = path.join(ooxmlDist, file);
       if (file.endsWith('.wasm')) {
-        fs.copyFileSync(path.join(ooxmlDist, file), path.join('dist', file));
+        fs.copyFileSync(fullPath, path.join('dist', file));
         console.log(`[asset] Copied ${file} to dist/`);
+      } else if (file === 'assets' && fs.statSync(fullPath).isDirectory()) {
+        fs.cpSync(fullPath, path.join('dist', 'assets'), { recursive: true });
+        console.log(`[asset] Copied assets/ directory to dist/assets`);
       }
     }
   }
@@ -27,7 +32,7 @@ function copyAssets() {
 copyAssets();
 
 // 1. Extension Host Build (Node CJS)
-const extensionContext = await esbuild.context({
+const extensionConfig = {
   entryPoints: ['src/extension.ts'],
   bundle: true,
   format: 'cjs',
@@ -37,25 +42,38 @@ const extensionContext = await esbuild.context({
   outfile: 'dist/extension.js',
   sourcemap: !isProduction,
   minify: isProduction,
-});
+};
 
 // 2. Webview Client Build (Browser IIFE)
-const webviewContext = await esbuild.context({
+const webviewConfig = {
   entryPoints: ['src/webview/index.ts'],
   bundle: true,
   format: 'iife',
   platform: 'browser',
-  target: 'es2022',
+  target: 'es2020',
   outfile: 'dist/webview.js',
   sourcemap: !isProduction,
   minify: isProduction,
-});
+  define: {
+    'import.meta.url': 'self.location.href',
+  },
+  loader: {
+    '.wasm': 'file',
+  },
+  plugins: [mainThreadOnlyWorkerStubs],
+};
 
 if (isWatch) {
-  await Promise.all([extensionContext.watch(), webviewContext.watch()]);
+  const [extCtx, wvCtx] = await Promise.all([
+    esbuild.context(extensionConfig),
+    esbuild.context(webviewConfig),
+  ]);
+  await Promise.all([extCtx.watch(), wvCtx.watch()]);
   console.log('Watching for changes...');
 } else {
-  await Promise.all([extensionContext.rebuild(), webviewContext.rebuild()]);
-  await Promise.all([extensionContext.dispose(), webviewContext.dispose()]);
+  await Promise.all([
+    esbuild.build(extensionConfig),
+    esbuild.build(webviewConfig),
+  ]);
   console.log('Build completed successfully.');
 }

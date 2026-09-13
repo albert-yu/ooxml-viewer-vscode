@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 export class XlsxEditorProvider implements vscode.CustomReadonlyEditorProvider {
   public static readonly viewType = 'ooxml.xlsxViewer';
+  private wasmDataUrl: string | null = null;
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -28,6 +29,15 @@ export class XlsxEditorProvider implements vscode.CustomReadonlyEditorProvider {
     return { uri, dispose: () => {} };
   }
 
+  private async getWasmsDataUrl(): Promise<string> {
+    if (!this.wasmDataUrl) {
+      const wasmUri = vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'xlsx_parser_bg.wasm');
+      const wasmBytes = await vscode.workspace.fs.readFile(wasmUri);
+      this.wasmDataUrl = `data:application/wasm;base64,${Buffer.from(wasmBytes).toString('base64')}`;
+    }
+    return this.wasmDataUrl;
+  }
+
   async resolveCustomEditor(
     document: vscode.CustomDocument,
     webviewPanel: vscode.WebviewPanel,
@@ -39,30 +49,32 @@ export class XlsxEditorProvider implements vscode.CustomReadonlyEditorProvider {
       enableScripts: true,
       localResourceRoots: [
         vscode.Uri.joinPath(this.context.extensionUri, 'dist'),
+        vscode.Uri.joinPath(document.uri, '..'),
       ],
     };
 
-    webview.html = this.getHtmlForWebview(webview);
-
-    const wasmUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'xlsx_parser_bg.wasm')
-    );
-
     const sendFileData = async () => {
       try {
-        const fileData = await vscode.workspace.fs.readFile(document.uri);
-        webview.postMessage({
+        const [fileData, wasmDataUrl] = await Promise.all([
+          vscode.workspace.fs.readFile(document.uri),
+          this.getWasmsDataUrl(),
+        ]);
+
+        const fileBase64 = Buffer.from(fileData).toString('base64');
+
+        await webview.postMessage({
           type: 'init',
-          fileData: Array.from(fileData),
-          wasmUrl: wasmUri.toString(),
+          wasmUrl: wasmDataUrl,
+          fileBase64: fileBase64,
         });
-      } catch (err) {
+      } catch (err: any) {
         vscode.window.showErrorMessage(`Failed to read file: ${document.uri.fsPath}`);
       }
     };
 
+    // Attach message listener before setting HTML to prevent race condition
     const messageListener = webview.onDidReceiveMessage((message) => {
-      if (message.type === 'ready') {
+      if (message.type === 'ready' || message.type === 'webview-ready') {
         sendFileData();
       }
     });
@@ -79,6 +91,9 @@ export class XlsxEditorProvider implements vscode.CustomReadonlyEditorProvider {
       fileWatcher.dispose();
       changeSubscription.dispose();
     });
+
+    // Set webview HTML
+    webview.html = this.getHtmlForWebview(webview);
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {
@@ -94,17 +109,22 @@ export class XlsxEditorProvider implements vscode.CustomReadonlyEditorProvider {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'none';
-    script-src 'nonce-${nonce}' 'unsafe-eval' 'wasm-unsafe-eval' vscode-webview:;
-    style-src 'unsafe-inline' vscode-webview:;
-    wasm-src 'self' vscode-webview: blob:;
-    connect-src vscode-webview: blob: data:;
-    img-src vscode-webview: blob: data:;
+    img-src ${webview.cspSource} data: blob:;
+    media-src ${webview.cspSource} blob:;
+    font-src ${webview.cspSource} data:;
+    script-src 'nonce-${nonce}' 'unsafe-eval' 'wasm-unsafe-eval' ${webview.cspSource};
+    worker-src data: blob:;
+    style-src 'unsafe-inline' ${webview.cspSource};
+    connect-src ${webview.cspSource} data: blob:;
   ">
   <title>OOXML Spreadsheet Viewer</title>
   <style>
-    html, body {
+    * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
+    }
+    html, body {
       width: 100%;
       height: 100%;
       overflow: hidden;
@@ -112,30 +132,63 @@ export class XlsxEditorProvider implements vscode.CustomReadonlyEditorProvider {
       color: var(--vscode-editor-foreground, #cccccc);
       font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
     }
-    #xlsx-container {
+    #viewer-root {
+      position: relative;
       width: 100%;
       height: 100%;
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      display: flex;
+      flex-direction: column;
     }
-    #loading {
+    #xlsx-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      flex: 1 1 auto;
+      overflow: hidden;
+    }
+    #status {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 14px;
-      color: var(--vscode-descriptionForeground, #888888);
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       z-index: 10;
-      pointer-events: none;
+      background: var(--vscode-editor-background, #1e1e1e);
+      font-size: 13px;
+    }
+    #status.error {
+      color: var(--vscode-errorForeground, #f44747);
+      padding: 20px;
+      text-align: center;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(127, 127, 127, 0.25);
+      border-top-color: var(--vscode-progressBar-background, var(--vscode-editor-foreground, #007acc));
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .loading-content {
+      display: flex;
+      align-items: center;
     }
   </style>
 </head>
 <body>
-  <div id="loading">Loading spreadsheet...</div>
-  <div id="xlsx-container"></div>
+  <div id="viewer-root">
+    <div id="status">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <span>Loading spreadsheet...</span>
+      </div>
+    </div>
+    <div id="xlsx-container"></div>
+  </div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
