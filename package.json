@@ -3,7 +3,7 @@
   "displayName": "OOXML Viewer",
   "description": "High-fidelity local viewer for OOXML documents: Word (.docx, .docm), Excel (.xlsx, .xlsm), and PowerPoint (.pptx, .pptm, .ppsx)",
   "version": "0.1.0",
-  "publisher": "TODO: replace me",
+  "publisher": "albert-yu",
   "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"
