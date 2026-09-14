@@ -5,6 +5,10 @@
   "version": "0.1.0",
   "publisher": "albert-yu",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/albert-yu/ooxml-viewer-vscode"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
