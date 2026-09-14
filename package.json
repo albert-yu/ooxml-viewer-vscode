@@ -1,6 +1,6 @@
 {
   "name": "ooxml-viewer-vscode",
-  "displayName": "OOXML Viewer",
+  "displayName": "OOXML document Viewer",
   "description": "High-fidelity local viewer for OOXML documents: Word (.docx, .docm), Excel (.xlsx, .xlsm), and PowerPoint (.pptx, .pptm, .ppsx)",
   "version": "0.1.0",
   "publisher": "albert-yu",
