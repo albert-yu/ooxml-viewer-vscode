@@ -1,8 +1,12 @@
 .vscode/**
+.git/**
+.gitignore
 src/**
 node_modules/**
-tsconfig.json
 build.mjs
-*.vsix
-.gitignore
-.vscodeignore
+esbuild-worker-stub.mjs
+tsconfig.json
+package-lock.json
+sample.xlsx
+*.map
+.DS_Store
