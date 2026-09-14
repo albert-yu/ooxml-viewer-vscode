@@ -36,3 +36,8 @@ To package the extension into a `.vsix` file:
 ```bash
 npx @vscode/vsce package
 ```
+
+## License
+
+[MIT](LICENSE)
+
